@@ -1,6 +1,6 @@
 export class Grammar
 {
-    prods: Map<string, RegExp> = new Map();
+    terminals: Map<string, RegExp> = new Map();
     constructor(spec: string)
     {
         let lines = spec.split("\n");
@@ -12,12 +12,13 @@ export class Grammar
 
             let pair = line.split(" -> ");
             if (pair.length != 2)
-                throw new Error("Invalid production");
-            if (this.prods.has(pair[0]))
+                throw new Error("Invalid line");
+            if (this.terminals.has(pair[0]))
                 throw new Error("Terminal already exists");
 
             let rex = new RegExp(pair[1], "gy");
-            this.prods.set(pair[0], rex);
+            this.terminals.set(pair[0], rex);
         }
+        this.terminals.set("WHITESPACE", RegExp(/\s/gy));
     }
 }
