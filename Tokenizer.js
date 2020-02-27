@@ -50,18 +50,15 @@ var Tokenizer = /** @class */ (function () {
                 if (m) {
                     // m[0] contains matched text as string
                     var lexeme = m[0];
-                    if (sym !== "WHITESPACE" && sym !== "COMMENT") {
+                    var token = new Token_1.Token(sym, lexeme, this.currentLine);
+                    this.currentLine += (lexeme.match(/\n/g) || []).length;
+                    this.idx += lexeme.length;
+                    if (sym !== "WHITESPACE" && sym !== "COMMENT")
                         // Return new Token using sym, lexeme, and line number
-                        this.currentLine += (lexeme.match(/\n/g) || []).length;
-                        this.idx += lexeme.length;
-                        return new Token_1.Token(sym, lexeme, this.currentLine);
-                    }
-                    else {
+                        return token;
+                    else
                         // Skip whitespace and get next real token
-                        this.currentLine += (lexeme.match(/\n/g) || []).length;
-                        this.idx += lexeme.length;
                         return this.next();
-                    }
                 }
             }
         }

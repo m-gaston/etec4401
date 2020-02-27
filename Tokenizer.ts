@@ -31,20 +31,15 @@ export class Tokenizer
             {
                 // m[0] contains matched text as string
                 let lexeme = m[0];
+                let token = new Token(sym, lexeme, this.currentLine);
+                this.currentLine += (lexeme.match(/\n/g) || []).length;
+                this.idx += lexeme.length;
                 if (sym !== "WHITESPACE" && sym !== "COMMENT")
-                {
                     // Return new Token using sym, lexeme, and line number
-                    this.currentLine += (lexeme.match(/\n/g) || []).length;
-                    this.idx += lexeme.length;
-                    return new Token(sym, lexeme, this.currentLine);
-                }
+                    return token;
                 else
-                {
                     // Skip whitespace and get next real token
-                    this.currentLine += (lexeme.match(/\n/g) || []).length;
-                    this.idx += lexeme.length;
                     return this.next();
-                }
             }
         }
         throw new Error("Syntax error on line " + this.currentLine);
