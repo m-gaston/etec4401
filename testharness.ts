@@ -1,44 +1,22 @@
 "use strict";
 
-//This test harness doesn't output many diagnostics when things break.
-//If you want to, you can instrument it accordingly to help you debug.
-
 declare var require:any;
-
-import {Grammar} from "./Grammar"
 let fs = require("fs");
-
+import {parse} from "./parser";
 
 function main(){
-    let teststr : string = fs.readFileSync("tests.txt","utf8");
-    let tests = JSON.parse(teststr);
-    let G: Grammar;
-
-    for(let i=0;i<tests.length;++i){
-        console.log("Test "+i);
-        let spec = tests[i]["spec"];
-        let valid = tests[i]["valid"];
-        let name = tests[i]["name"];
-        
-        try{
-            let G = new Grammar(spec);
-            if( valid ){
-            } else {
-                console.log("Reported grammar "+name+" as valid, but it's not.");
-                return;
-            }
-        } catch(e){
-            if( valid ){
-                console.log("Reported grammar "+name+" as invalid, but it's valid.");
-                console.log(e);
-                return;
-            }
-            else{
-            }
-        }
+    let inp = fs.readFileSync("input1.txt","utf8");
+    let root = parse( inp );
+    fs.writeFileSync( "tree.dot", root );
+    console.log("Wrote tree.dot");
+    try{
+        inp = fs.readFileSync("input2.txt","utf8");
+        root = parse( inp );
+        console.log("Accepted invalid input");
+    } catch(e){
+        console.log("Rejected invalid input. Good.");
     }
-    
-    console.log(tests.length+" tests OK");
 }
+
 
 main()

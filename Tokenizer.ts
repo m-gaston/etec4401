@@ -1,34 +1,28 @@
 import {Token} from "./Token"
 import {Grammar} from "./Grammar"
 
-export class Tokenizer
-{
+export class Tokenizer {
     grammar: Grammar;
     inputData: string;
     currentLine: number;
     idx: number;
-    constructor(grammar: Grammar)
-    {
+    constructor(grammar: Grammar) {
         this.grammar = grammar;
     }
-    setInput(inputData: string)
-    {
+    setInput(inputData: string) {
         this.inputData = inputData;
         this.currentLine = 1;
         this.idx = 0;
     }
-    next(): Token
-    {
+    next(): Token {
         // Check for EOF
         if (this.idx >= this.inputData.length)
             return new Token("$", undefined, this.currentLine);
 
-        for (let [sym, rex] of this.grammar.terminals)
-        {
+        for (let [sym, rex] of this.grammar.terminals) {
             rex.lastIndex = this.idx;
             let m = rex.exec(this.inputData);
-            if (m)
-            {
+            if (m) {
                 // m[0] contains matched text as string
                 let lexeme = m[0];
                 let token = new Token(sym, lexeme, this.currentLine);
