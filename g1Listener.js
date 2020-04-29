@@ -74,6 +74,78 @@ g1Listener.prototype.exitExpr = function(ctx) {
 };
 
 
+// Enter a parse tree produced by g1Parser#orexp.
+g1Listener.prototype.enterOrexp = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#orexp.
+g1Listener.prototype.exitOrexp = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#andexp.
+g1Listener.prototype.enterAndexp = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#andexp.
+g1Listener.prototype.exitAndexp = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#notexp.
+g1Listener.prototype.enterNotexp = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#notexp.
+g1Listener.prototype.exitNotexp = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#rel.
+g1Listener.prototype.enterRel = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#rel.
+g1Listener.prototype.exitRel = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#sum.
+g1Listener.prototype.enterSum = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#sum.
+g1Listener.prototype.exitSum = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#term.
+g1Listener.prototype.enterTerm = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#term.
+g1Listener.prototype.exitTerm = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#neg.
+g1Listener.prototype.enterNeg = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#neg.
+g1Listener.prototype.exitNeg = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#factor.
+g1Listener.prototype.enterFactor = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#factor.
+g1Listener.prototype.exitFactor = function(ctx) {
+};
+
+
 // Enter a parse tree produced by g1Parser#returnStmt.
 g1Listener.prototype.enterReturnStmt = function(ctx) {
 };
