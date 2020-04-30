@@ -20,6 +20,24 @@ g1Listener.prototype.exitProgram = function(ctx) {
 };
 
 
+// Enter a parse tree produced by g1Parser#varDeclList.
+g1Listener.prototype.enterVarDeclList = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#varDeclList.
+g1Listener.prototype.exitVarDeclList = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#varDecl.
+g1Listener.prototype.enterVarDecl = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#varDecl.
+g1Listener.prototype.exitVarDecl = function(ctx) {
+};
+
+
 // Enter a parse tree produced by g1Parser#stmts.
 g1Listener.prototype.enterStmts = function(ctx) {
 };
@@ -35,6 +53,15 @@ g1Listener.prototype.enterStmt = function(ctx) {
 
 // Exit a parse tree produced by g1Parser#stmt.
 g1Listener.prototype.exitStmt = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#assign.
+g1Listener.prototype.enterAssign = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#assign.
+g1Listener.prototype.exitAssign = function(ctx) {
 };
 
 
