@@ -13,7 +13,8 @@ let stringPool: Map<string, string>;
 
 enum VarType {
     INTEGER,
-    STRING
+    STRING,
+    VOID
 }
 
 class VarInfo {
@@ -94,11 +95,29 @@ function makeAsm(root: TreeNode) {
     stringPool = new Map();
     emit("default rel");
     emit("section .text");
+    emit("%include \"doCall.asm\"");
     emit("global main");
     emit("main:");
+    emit("mov arg0, 0");
+    emit("mov arg1, string_r");
+    emit("ffcall fdopen");
+    emit("mov [stdin], rax");
+    emit("mov arg0, 1");
+    emit("mov arg1, string_w");
+    emit("ffcall fdopen");
+    emit("mov [stdout], rax");
     programNodeCode(root);
     emit("ret");
     emit("section .data");
+    emit("stdin: dq 0");
+    emit("stdout: dq 0");
+    emit("string_r: db 'r', 0");
+    emit("string_w: db 'w', 0");
+    emit("string_a: db 'a', 0");
+    emit("string_rplus: db 'r+', 0");
+    emit("string_percent_s: db '%s', 0");
+    emit("string_percent_d: db '%d', 0");
+    emit("fgets_buffer: times 64 db 0");
     outputSymbolTableInfo();
     outputStringPoolInfo();
     return asmCode;
@@ -107,7 +126,6 @@ function makeAsm(root: TreeNode) {
 // TERMINALS
 
 function typeNodeCode(n: TreeNode): VarType {
-    emit("; start typeNodeCode");
     if (n.token.lexeme === "int") {
         return VarType.INTEGER;
     } else if (n.token.lexeme === "string") {
@@ -118,27 +136,36 @@ function typeNodeCode(n: TreeNode): VarType {
 }
 
 function stringConstantNodeCode(n: TreeNode): string {
-    emit("; start stringConstantNodeCode");
     let s = n.token.lexeme;
     s = s.slice(1, -1);
     let tmp = "";
     for (let i = 0; i < s.length; i++) {
-        tmp += s.charAt(i);
         if (s.charAt(i) === "\\") {
-            tmp += s.charAt(i + 1);
-            i++;
+            if (s.charAt(i + 1) === "\"") {
+                tmp += "\"";
+                i++;
+            } else if (s.charAt(i + 1) === "n") {
+                tmp += "\n";
+                i++;
+            } else if (s.charAt(i + 1) === "\\") {
+                tmp += "\\";
+                i++;
+            } else {
+                tmp += s.charAt(i);
+            }
+        } else {
+            tmp += s.charAt(i);
         }
     }
     if (!stringPool.has(tmp)) {
         stringPool.set(tmp, label());
     }
-    return stringPool.get(tmp);   // return the label
+    return stringPool.get(tmp);     // return the label
 }
 
 // NONTERMINALS
 
 function programNodeCode(n: TreeNode) {
-    emit("; start programNodeCode");
     // program -> braceblock
     if (n.sym != "program") {
         ICE();
@@ -147,33 +174,7 @@ function programNodeCode(n: TreeNode) {
     braceblockNodeCode(n.children[1]);
 }
 
-function varDeclListNodeCode(n: TreeNode) {
-    emit("; start varDeclListNodeCode");
-    // varDeclList -> varDecl SEMI varDeclList | lambda
-    if (n.children.length === 0) {
-        return;
-    } else {
-        varDeclNodeCode(n.children[0]);
-        varDeclListNodeCode(n.children[2]);
-    }
-}
-
-function varDeclNodeCode(n: TreeNode) {
-    emit("; start varDeclNodeCode");
-    // varDecl -> TYPE ID
-    let vname = n.children[1].token.lexeme;
-    let vtype = typeNodeCode(n.children[0]);
-    symTable.set(vname, new VarInfo(vtype, label()));
-}
-
-function braceblockNodeCode(n: TreeNode) {
-    emit("; start braceblockNodeCode");
-    // braceblock -> LBR stmts RBR
-    stmtsNodeCode(n.children[1]);
-}
-
 function stmtsNodeCode(n: TreeNode) {
-    emit("; start stmtsNodeCode");
     // stmts -> stmt stmts | lambda
     if (n.children.length === 0) {
         return;
@@ -183,8 +184,7 @@ function stmtsNodeCode(n: TreeNode) {
 }
 
 function stmtNodeCode(n: TreeNode) {
-    emit("; start stmtNodeCode");
-    // stmt -> cond | loop | returnStmt SEMI | assign SEMI
+    // stmt -> cond | loop | returnStmt SEMI | assign SEMI | funcCall SEMI
     let c = n.children[0];
     switch (c.sym) {
         case "cond":
@@ -199,24 +199,55 @@ function stmtNodeCode(n: TreeNode) {
         case "assign":
             assignNodeCode(c);
             break;
+        case "funcCall":
+            funcCallNodeCode(c);
+            break;
         default:
             ICE();
     }
 }
 
-function assignNodeCode(n: TreeNode) {
-    emit("; start assignNodeCode");
-    // assign -> ID EQ expr
-    let t: VarType = exprNodeCode(n.children[2]);
-    let vname = n.children[0].token.lexeme;
-    if (symTable.get(vname).type !== t) {
-        throw new Error("Type mismatch");
+function loopNodeCode(n: TreeNode) {
+    // WHILE LP expr RP braceblock
+    var whileLabel = label();
+    emit(`${whileLabel}:`);
+    exprNodeCode(n.children[2]);
+    emit("pop rax");
+    emit("cmp rax, 0");
+    var endWhileLabel = label();
+    emit(`je ${endWhileLabel}`);
+    braceblockNodeCode(n.children[4]);
+    emit(`jmp ${whileLabel}`);
+    emit(`${endWhileLabel}:`);
+}
+
+function condNodeCode(n: TreeNode) {
+    // cond -> IF LP expr RP braceblock |
+    //   IF LP expr RP braceblock ELSE braceblock
+    exprNodeCode(n.children[2]);    // leaves result in rax
+    emit("pop rax");                // NEW!
+    emit("cmp rax, 0");
+    var endifLabel = label();
+    emit(`je ${endifLabel}`);
+    braceblockNodeCode(n.children[4]);
+    if (n.children.length === 5) {
+        // no 'else'
+        emit(`${endifLabel}:`);
+    } else {
+        var endElseLabel = label();
+        emit(`jmp ${endElseLabel}`);
+        emit(`${endifLabel}:`);
+        braceblockNodeCode(n.children[6]);
+        emit(`${endElseLabel}:`);
     }
-    moveBytesFromStackToLocation(symTable.get(vname).location);
+}
+
+function braceblockNodeCode(n: TreeNode) {
+    // braceblock -> LBR stmts RBR
+    stmtsNodeCode(n.children[1]);
 }
 
 function returnStmtNodeCode(n: TreeNode) {
-    emit("; start returnStmtNodeCode");
     // returnStmt -> RETURN expr
     exprNodeCode(n.children[1]);
     emit("pop rax");
@@ -224,13 +255,11 @@ function returnStmtNodeCode(n: TreeNode) {
 }
 
 function exprNodeCode(n: TreeNode): VarType {
-    emit("; start exprNodeCode");
     // expr -> orexp
     return orexpNodeCode(n.children[0]);
 }
 
 function orexpNodeCode(n: TreeNode): VarType {
-    emit("; start orexpNodeCode");
     // orexp -> orexp OR andexp | andexp
     if (n.children.length === 1) {
         return andexpNodeCode(n.children[0]);
@@ -249,7 +278,6 @@ function orexpNodeCode(n: TreeNode): VarType {
 }
 
 function andexpNodeCode(n: TreeNode): VarType {
-    emit("; start andexpNodeCode");
     // andexp -> andexp AND notexp | notexp
     if (n.children.length === 1) {
         return notexpNodeCode(n.children[0]);
@@ -268,10 +296,9 @@ function andexpNodeCode(n: TreeNode): VarType {
 }
 
 function notexpNodeCode(n: TreeNode): VarType {
-    emit("; start notexpNodeCode");
     // NOT notexp | rel
     if (n.children.length === 1) {
-        return relexpNodeCode(n.children[0]);
+        return relNodeCode(n.children[0]);
     } else {
         let notexpType = notexpNodeCode(n.children[1]);
         convertStackTopToZeroOrOneInteger(notexpType);
@@ -292,8 +319,7 @@ function notexpNodeCode(n: TreeNode): VarType {
     }
 }
 
-function relexpNodeCode(n: TreeNode): VarType {
-    emit("; start relexpNodeCode");
+function relNodeCode(n: TreeNode): VarType {
     // rel -> sum RELOP sum | sum
     if (n.children.length === 1) {
         return sumNodeCode(n.children[0]);
@@ -322,7 +348,6 @@ function relexpNodeCode(n: TreeNode): VarType {
 }
 
 function sumNodeCode(n: TreeNode): VarType {
-    emit("; start sumNodeCode");
     // sum -> sum PLUS term | sum MINUS term | term
     if (n.children.length === 1) {
         return termNodeCode(n.children[0]);
@@ -351,7 +376,6 @@ function sumNodeCode(n: TreeNode): VarType {
 }
 
 function termNodeCode(n: TreeNode): VarType {
-    emit("; start termNodeCode");
     // term -> term MULOP neg | neg
     if (n.children.length === 1) {
         return negNodeCode(n.children[0]);
@@ -387,7 +411,6 @@ function termNodeCode(n: TreeNode): VarType {
 }
 
 function negNodeCode(n: TreeNode): VarType {
-    emit("; start negNodeCode");
     // MINUS neg | factor
     if (n.children.length === 1) {
         return factorNodeCode(n.children[0]);
@@ -404,8 +427,7 @@ function negNodeCode(n: TreeNode): VarType {
 }
 
 function factorNodeCode(n: TreeNode): VarType {
-    emit("; start factorNodeCode");
-    // factor -> NUM | LP expr RP | ID | STRING_CONSTANT
+    // factor -> NUM | LP expr RP | ID | STRING_CONSTANT | funcCall
     let child = n.children[0];
     switch (child.sym) {
         case "NUM":
@@ -426,46 +448,189 @@ function factorNodeCode(n: TreeNode): VarType {
             let lbl = stringConstantNodeCode(n.children[0]);
             emit(`push ${lbl}`);
             return VarType.STRING;
+        case "funcCall":
+            let type = funcCallNodeCode(n.children[0]);
+            if (type === VarType.VOID) {
+                throw new Error("Can't use VOID in expression");
+            }
+            emit("push rax");
+            return type;
         default:
             ICE();
     }
 }
 
-function condNodeCode(n: TreeNode) {
-    emit("; start condNodeCode");
-    // cond -> IF LP expr RP braceblock |
-    //   IF LP expr RP braceblock ELSE braceblock
-    exprNodeCode(n.children[2]);    // leaves result in rax
-    emit("pop rax");                // NEW!
-    emit("cmp rax, 0");
-    var endifLabel = label();
-    emit(`je ${endifLabel}`);
-    braceblockNodeCode(n.children[4]);
-    if (n.children.length === 5) {
-        // no 'else'
-        emit(`${endifLabel}:`);
+function varDeclListNodeCode(n: TreeNode) {
+    // varDeclList -> varDecl SEMI varDeclList | lambda
+    if (n.children.length === 0) {
+        return;
     } else {
-        var endElseLabel = label();
-        emit(`jmp ${endElseLabel}`);
-        emit(`${endifLabel}:`);
-        braceblockNodeCode(n.children[6]);
-        emit(`${endElseLabel}:`);
+        varDeclNodeCode(n.children[0]);
+        varDeclListNodeCode(n.children[2]);
     }
 }
 
-function loopNodeCode(n: TreeNode) {
-    emit("; start loopNodeCode");
-    // WHILE LP expr RP braceblock
-    var whileLabel = label();
-    emit(`${whileLabel}:`);
-    exprNodeCode(n.children[2]);
-    emit("pop rax");
-    emit("cmp rax, 0");
-    var endWhileLabel = label();
-    emit(`je ${endWhileLabel}`);
-    braceblockNodeCode(n.children[4]);
-    emit(`jmp ${whileLabel}`);
-    emit(`${endWhileLabel}:`);
+function varDeclNodeCode(n: TreeNode) {
+    // varDecl -> TYPE ID
+    let vname = n.children[1].token.lexeme;
+    let vtype = typeNodeCode(n.children[0]);
+    symTable.set(vname, new VarInfo(vtype, label()));
+}
+
+function assignNodeCode(n: TreeNode) {
+    // assign -> ID EQ expr
+    let t: VarType = exprNodeCode(n.children[2]);
+    let vname = n.children[0].token.lexeme;
+    if (symTable.get(vname).type !== t) {
+        throw new Error("Type mismatch");
+    }
+    moveBytesFromStackToLocation(symTable.get(vname).location);
+}
+
+function funcCallNodeCode(n: TreeNode): VarType {
+    // funcCall -> builtinFuncCall
+    return builtinFuncCallNodeCode(n.children[0]);
+}
+
+function builtinFuncCallNodeCode(n: TreeNode): VarType {
+    // builtinFuncCall -> PRINT LP expr RP
+    //                  | INPUT LP RP
+    //                  | OPEN LP expr RP
+    //                  | READ LP expr RP
+    //                  | WRITE LP expr CMA expr RP
+    //                  | CLOSE LP expr RP
+    switch (n.children[0].sym) {
+        case "PRINT":
+        {
+            // PRINT LP expr RP
+            // printf("%d", x) or printf("%s", p)
+            let outputType = exprNodeCode(n.children[2]);
+            let fmt: string;
+            if (outputType === VarType.INTEGER) {
+                fmt = "string_percent_d";
+            } else if (outputType === VarType.STRING) {
+                fmt = "string_percent_s";
+            } else {
+                throw new Error("PRINT expected arg of type INTEGER or STRING");
+            }
+            emit("pop arg1");           // the thing to print
+            emit(`mov arg0, ${fmt}`);
+            emit("ffvcall printf, 0");
+            // need to call fflush(NULL)
+            emit("mov arg0, 0");
+            emit("ffcall fflush");
+            return VarType.VOID;
+        }
+        case "INPUT":
+        {
+            // INPUT LP RP
+            // fgets(ptr, size, stream)
+            // strtol(ptr, eptr, base)
+            emit("mov arg0, fgets_buffer");
+            emit("mov arg1, 64");
+            emit("mov arg2, [stdin]");
+            emit("ffcall fgets");
+
+            // check for errors
+            let lbl = label();
+            emit("cmp qword [rsp], -1");
+            emit(`jne ${lbl}`);
+            emit("ffcall abort");
+            emit(`${lbl}:`);
+
+            emit("mov arg0, fgets_buffer");
+            emit("mov arg1, 0");
+            emit("mov arg2, 10");
+            emit("ffcall strtol");      // result is in rax
+            return VarType.INTEGER;
+        }
+        case "OPEN":
+        {
+            // OPEN LP expr RP
+            // fopen(string, "r+")
+            let type = exprNodeCode(n.children[2]);
+            if (type !== VarType.STRING) {
+                throw new Error("OPEN expected arg of type STRING");
+            }
+            // tmp = fopen(filename, "a")
+            emit("mov arg0, [rsp]");    // filename (string)
+            emit("mov arg1, string_a");
+            emit("ffcall fopen");
+            // fclose(tmp)
+            emit("mov arg0, rax");
+            emit("ffcall fclose");
+            // fopen(filename, "r+")
+            emit("pop arg0");           // filename; remove from stack
+            emit("mov arg1, string_rplus");
+            emit("ffcall fopen");       // result is in rax
+            return VarType.INTEGER;
+        }
+        case "READ":
+        {
+            // READ LP expr RP
+            // fgets(ptr, size, handle)
+            // strtol(ptr, eptr, base)
+            let handleType = exprNodeCode(n.children[2]);
+            if (handleType !== VarType.INTEGER) {
+                throw new Error("READ expected arg of type INTEGER");
+            }
+            emit("mov arg0, fgets_buffer");
+            emit("mov arg1, 64");
+            emit("pop arg2");
+            emit("ffcall fgets");
+            
+            // check for errors
+            let lbl = label();
+            emit("cmp qword [rsp], -1");
+            emit(`jne ${lbl}`);
+            emit("ffcall abort");
+            emit(`${lbl}:`);
+
+            emit("mov arg0, fgets_buffer");
+            emit("mov arg1, 0");
+            emit("mov arg2, 10");
+            emit("ffcall strtol");      // result is in rax
+            return VarType.INTEGER;
+        }
+        case "WRITE":
+        {
+            // WRITE LP expr CMA expr RP
+            // fprintf(fp, "%s", str) or fprintf(fp, "%d", num)
+            let handleType = exprNodeCode(n.children[2]);
+            if (handleType !== VarType.INTEGER) {
+                throw new Error("WRITE expected arg 1 of type INTEGER");
+            }
+            let outputType = exprNodeCode(n.children[4]);
+            let fmt: string;
+            if (outputType === VarType.INTEGER) {
+                fmt = "string_percent_d";
+            } else if (outputType === VarType.STRING) {
+                fmt = "string_percent_s";
+            } else {
+                throw new Error("WRITE expected arg 2 of type INTEGER or STRING");
+            }
+            emit("pop arg2");           // the thing to print
+            emit(`mov arg1, ${fmt}`);
+            emit("pop arg0");           // the handle
+            emit("ffvcall fprintf, 0");
+            // need to call fflush(NULL)
+            emit("mov arg0, 0");
+            emit("ffcall fflush");
+            return VarType.VOID;
+        }
+        case "CLOSE":
+        {
+            // CLOSE LP expr RP
+            // fclose(handle)
+            let type = exprNodeCode(n.children[2]);
+            if (type !== VarType.INTEGER) {
+                throw new Error("CLOSE expected arg of type INTEGER");
+            }
+            emit("pop arg0");           // argument for fclose
+            emit("ffcall fclose");
+            return VarType.VOID;
+        }
+    }
 }
 
 // UTILITY FUNCTIONS

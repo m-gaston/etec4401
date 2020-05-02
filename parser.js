@@ -24,6 +24,7 @@ var VarType;
 (function (VarType) {
     VarType[VarType["INTEGER"] = 0] = "INTEGER";
     VarType[VarType["STRING"] = 1] = "STRING";
+    VarType[VarType["VOID"] = 2] = "VOID";
 })(VarType || (VarType = {}));
 var VarInfo = /** @class */ (function () {
     function VarInfo(t, location) {
@@ -100,18 +101,35 @@ function makeAsm(root) {
     stringPool = new Map();
     emit("default rel");
     emit("section .text");
+    emit("%include \"doCall.asm\"");
     emit("global main");
     emit("main:");
+    emit("mov arg0, 0");
+    emit("mov arg1, string_r");
+    emit("ffcall fdopen");
+    emit("mov [stdin], rax");
+    emit("mov arg0, 1");
+    emit("mov arg1, string_w");
+    emit("ffcall fdopen");
+    emit("mov [stdout], rax");
     programNodeCode(root);
     emit("ret");
     emit("section .data");
+    emit("stdin: dq 0");
+    emit("stdout: dq 0");
+    emit("string_r: db 'r', 0");
+    emit("string_w: db 'w', 0");
+    emit("string_a: db 'a', 0");
+    emit("string_rplus: db 'r+', 0");
+    emit("string_percent_s: db '%s', 0");
+    emit("string_percent_d: db '%d', 0");
+    emit("fgets_buffer: times 64 db 0");
     outputSymbolTableInfo();
     outputStringPoolInfo();
     return asmCode;
 }
 // TERMINALS
 function typeNodeCode(n) {
-    emit("; start typeNodeCode");
     if (n.token.lexeme === "int") {
         return VarType.INTEGER;
     }
@@ -123,15 +141,29 @@ function typeNodeCode(n) {
     }
 }
 function stringConstantNodeCode(n) {
-    emit("; start stringConstantNodeCode");
     var s = n.token.lexeme;
     s = s.slice(1, -1);
     var tmp = "";
     for (var i = 0; i < s.length; i++) {
-        tmp += s.charAt(i);
         if (s.charAt(i) === "\\") {
-            tmp += s.charAt(i + 1);
-            i++;
+            if (s.charAt(i + 1) === "\"") {
+                tmp += "\"";
+                i++;
+            }
+            else if (s.charAt(i + 1) === "n") {
+                tmp += "\n";
+                i++;
+            }
+            else if (s.charAt(i + 1) === "\\") {
+                tmp += "\\";
+                i++;
+            }
+            else {
+                tmp += s.charAt(i);
+            }
+        }
+        else {
+            tmp += s.charAt(i);
         }
     }
     if (!stringPool.has(tmp)) {
@@ -141,7 +173,6 @@ function stringConstantNodeCode(n) {
 }
 // NONTERMINALS
 function programNodeCode(n) {
-    emit("; start programNodeCode");
     // program -> braceblock
     if (n.sym != "program") {
         ICE();
@@ -149,31 +180,7 @@ function programNodeCode(n) {
     varDeclListNodeCode(n.children[0]);
     braceblockNodeCode(n.children[1]);
 }
-function varDeclListNodeCode(n) {
-    emit("; start varDeclListNodeCode");
-    // varDeclList -> varDecl SEMI varDeclList | lambda
-    if (n.children.length === 0) {
-        return;
-    }
-    else {
-        varDeclNodeCode(n.children[0]);
-        varDeclListNodeCode(n.children[2]);
-    }
-}
-function varDeclNodeCode(n) {
-    emit("; start varDeclNodeCode");
-    // varDecl -> TYPE ID
-    var vname = n.children[1].token.lexeme;
-    var vtype = typeNodeCode(n.children[0]);
-    symTable.set(vname, new VarInfo(vtype, label()));
-}
-function braceblockNodeCode(n) {
-    emit("; start braceblockNodeCode");
-    // braceblock -> LBR stmts RBR
-    stmtsNodeCode(n.children[1]);
-}
 function stmtsNodeCode(n) {
-    emit("; start stmtsNodeCode");
     // stmts -> stmt stmts | lambda
     if (n.children.length === 0) {
         return;
@@ -182,8 +189,7 @@ function stmtsNodeCode(n) {
     stmtsNodeCode(n.children[1]);
 }
 function stmtNodeCode(n) {
-    emit("; start stmtNodeCode");
-    // stmt -> cond | loop | returnStmt SEMI | assign SEMI
+    // stmt -> cond | loop | returnStmt SEMI | assign SEMI | funcCall SEMI
     var c = n.children[0];
     switch (c.sym) {
         case "cond":
@@ -198,34 +204,62 @@ function stmtNodeCode(n) {
         case "assign":
             assignNodeCode(c);
             break;
+        case "funcCall":
+            funcCallNodeCode(c);
+            break;
         default:
             ICE();
     }
 }
-function assignNodeCode(n) {
-    emit("; start assignNodeCode");
-    // assign -> ID EQ expr
-    var t = exprNodeCode(n.children[2]);
-    var vname = n.children[0].token.lexeme;
-    if (symTable.get(vname).type !== t) {
-        throw new Error("Type mismatch");
+function loopNodeCode(n) {
+    // WHILE LP expr RP braceblock
+    var whileLabel = label();
+    emit(whileLabel + ":");
+    exprNodeCode(n.children[2]);
+    emit("pop rax");
+    emit("cmp rax, 0");
+    var endWhileLabel = label();
+    emit("je " + endWhileLabel);
+    braceblockNodeCode(n.children[4]);
+    emit("jmp " + whileLabel);
+    emit(endWhileLabel + ":");
+}
+function condNodeCode(n) {
+    // cond -> IF LP expr RP braceblock |
+    //   IF LP expr RP braceblock ELSE braceblock
+    exprNodeCode(n.children[2]); // leaves result in rax
+    emit("pop rax"); // NEW!
+    emit("cmp rax, 0");
+    var endifLabel = label();
+    emit("je " + endifLabel);
+    braceblockNodeCode(n.children[4]);
+    if (n.children.length === 5) {
+        // no 'else'
+        emit(endifLabel + ":");
     }
-    moveBytesFromStackToLocation(symTable.get(vname).location);
+    else {
+        var endElseLabel = label();
+        emit("jmp " + endElseLabel);
+        emit(endifLabel + ":");
+        braceblockNodeCode(n.children[6]);
+        emit(endElseLabel + ":");
+    }
+}
+function braceblockNodeCode(n) {
+    // braceblock -> LBR stmts RBR
+    stmtsNodeCode(n.children[1]);
 }
 function returnStmtNodeCode(n) {
-    emit("; start returnStmtNodeCode");
     // returnStmt -> RETURN expr
     exprNodeCode(n.children[1]);
     emit("pop rax");
     emit("ret");
 }
 function exprNodeCode(n) {
-    emit("; start exprNodeCode");
     // expr -> orexp
     return orexpNodeCode(n.children[0]);
 }
 function orexpNodeCode(n) {
-    emit("; start orexpNodeCode");
     // orexp -> orexp OR andexp | andexp
     if (n.children.length === 1) {
         return andexpNodeCode(n.children[0]);
@@ -244,7 +278,6 @@ function orexpNodeCode(n) {
     }
 }
 function andexpNodeCode(n) {
-    emit("; start andexpNodeCode");
     // andexp -> andexp AND notexp | notexp
     if (n.children.length === 1) {
         return notexpNodeCode(n.children[0]);
@@ -263,10 +296,9 @@ function andexpNodeCode(n) {
     }
 }
 function notexpNodeCode(n) {
-    emit("; start notexpNodeCode");
     // NOT notexp | rel
     if (n.children.length === 1) {
-        return relexpNodeCode(n.children[0]);
+        return relNodeCode(n.children[0]);
     }
     else {
         var notexpType = notexpNodeCode(n.children[1]);
@@ -287,8 +319,7 @@ function notexpNodeCode(n) {
         return VarType.INTEGER;
     }
 }
-function relexpNodeCode(n) {
-    emit("; start relexpNodeCode");
+function relNodeCode(n) {
     // rel -> sum RELOP sum | sum
     if (n.children.length === 1) {
         return sumNodeCode(n.children[0]);
@@ -329,7 +360,6 @@ function relexpNodeCode(n) {
     }
 }
 function sumNodeCode(n) {
-    emit("; start sumNodeCode");
     // sum -> sum PLUS term | sum MINUS term | term
     if (n.children.length === 1) {
         return termNodeCode(n.children[0]);
@@ -358,7 +388,6 @@ function sumNodeCode(n) {
     }
 }
 function termNodeCode(n) {
-    emit("; start termNodeCode");
     // term -> term MULOP neg | neg
     if (n.children.length === 1) {
         return negNodeCode(n.children[0]);
@@ -394,7 +423,6 @@ function termNodeCode(n) {
     }
 }
 function negNodeCode(n) {
-    emit("; start negNodeCode");
     // MINUS neg | factor
     if (n.children.length === 1) {
         return factorNodeCode(n.children[0]);
@@ -411,8 +439,7 @@ function negNodeCode(n) {
     }
 }
 function factorNodeCode(n) {
-    emit("; start factorNodeCode");
-    // factor -> NUM | LP expr RP | ID | STRING_CONSTANT
+    // factor -> NUM | LP expr RP | ID | STRING_CONSTANT | funcCall
     var child = n.children[0];
     switch (child.sym) {
         case "NUM":
@@ -433,45 +460,185 @@ function factorNodeCode(n) {
             var lbl = stringConstantNodeCode(n.children[0]);
             emit("push " + lbl);
             return VarType.STRING;
+        case "funcCall":
+            var type = funcCallNodeCode(n.children[0]);
+            if (type === VarType.VOID) {
+                throw new Error("Can't use VOID in expression");
+            }
+            emit("push rax");
+            return type;
         default:
             ICE();
     }
 }
-function condNodeCode(n) {
-    emit("; start condNodeCode");
-    // cond -> IF LP expr RP braceblock |
-    //   IF LP expr RP braceblock ELSE braceblock
-    exprNodeCode(n.children[2]); // leaves result in rax
-    emit("pop rax"); // NEW!
-    emit("cmp rax, 0");
-    var endifLabel = label();
-    emit("je " + endifLabel);
-    braceblockNodeCode(n.children[4]);
-    if (n.children.length === 5) {
-        // no 'else'
-        emit(endifLabel + ":");
+function varDeclListNodeCode(n) {
+    // varDeclList -> varDecl SEMI varDeclList | lambda
+    if (n.children.length === 0) {
+        return;
     }
     else {
-        var endElseLabel = label();
-        emit("jmp " + endElseLabel);
-        emit(endifLabel + ":");
-        braceblockNodeCode(n.children[6]);
-        emit(endElseLabel + ":");
+        varDeclNodeCode(n.children[0]);
+        varDeclListNodeCode(n.children[2]);
     }
 }
-function loopNodeCode(n) {
-    emit("; start loopNodeCode");
-    // WHILE LP expr RP braceblock
-    var whileLabel = label();
-    emit(whileLabel + ":");
-    exprNodeCode(n.children[2]);
-    emit("pop rax");
-    emit("cmp rax, 0");
-    var endWhileLabel = label();
-    emit("je " + endWhileLabel);
-    braceblockNodeCode(n.children[4]);
-    emit("jmp " + whileLabel);
-    emit(endWhileLabel + ":");
+function varDeclNodeCode(n) {
+    // varDecl -> TYPE ID
+    var vname = n.children[1].token.lexeme;
+    var vtype = typeNodeCode(n.children[0]);
+    symTable.set(vname, new VarInfo(vtype, label()));
+}
+function assignNodeCode(n) {
+    // assign -> ID EQ expr
+    var t = exprNodeCode(n.children[2]);
+    var vname = n.children[0].token.lexeme;
+    if (symTable.get(vname).type !== t) {
+        throw new Error("Type mismatch");
+    }
+    moveBytesFromStackToLocation(symTable.get(vname).location);
+}
+function funcCallNodeCode(n) {
+    // funcCall -> builtinFuncCall
+    return builtinFuncCallNodeCode(n.children[0]);
+}
+function builtinFuncCallNodeCode(n) {
+    // builtinFuncCall -> PRINT LP expr RP
+    //                  | INPUT LP RP
+    //                  | OPEN LP expr RP
+    //                  | READ LP expr RP
+    //                  | WRITE LP expr CMA expr RP
+    //                  | CLOSE LP expr RP
+    switch (n.children[0].sym) {
+        case "PRINT":
+            {
+                // PRINT LP expr RP
+                // printf("%d", x) or printf("%s", p)
+                var outputType = exprNodeCode(n.children[2]);
+                var fmt = void 0;
+                if (outputType === VarType.INTEGER) {
+                    fmt = "string_percent_d";
+                }
+                else if (outputType === VarType.STRING) {
+                    fmt = "string_percent_s";
+                }
+                else {
+                    throw new Error("PRINT expected arg of type INTEGER or STRING");
+                }
+                emit("pop arg1"); // the thing to print
+                emit("mov arg0, " + fmt);
+                emit("ffvcall printf, 0");
+                // need to call fflush(NULL)
+                emit("mov arg0, 0");
+                emit("ffcall fflush");
+                return VarType.VOID;
+            }
+        case "INPUT":
+            {
+                // INPUT LP RP
+                // fgets(ptr, size, stream)
+                // strtol(ptr, eptr, base)
+                emit("mov arg0, fgets_buffer");
+                emit("mov arg1, 64");
+                emit("mov arg2, [stdin]");
+                emit("ffcall fgets");
+                // check for errors
+                var lbl = label();
+                emit("cmp qword [rsp], -1");
+                emit("jne " + lbl);
+                emit("ffcall abort");
+                emit(lbl + ":");
+                emit("mov arg0, fgets_buffer");
+                emit("mov arg1, 0");
+                emit("mov arg2, 10");
+                emit("ffcall strtol"); // result is in rax
+                return VarType.INTEGER;
+            }
+        case "OPEN":
+            {
+                // OPEN LP expr RP
+                // fopen(string, "r+")
+                var type = exprNodeCode(n.children[2]);
+                if (type !== VarType.STRING) {
+                    throw new Error("OPEN expected arg of type STRING");
+                }
+                // tmp = fopen(filename, "a")
+                emit("mov arg0, [rsp]"); // filename (string)
+                emit("mov arg1, string_a");
+                emit("ffcall fopen");
+                // fclose(tmp)
+                emit("mov arg0, rax");
+                emit("ffcall fclose");
+                // fopen(filename, "r+")
+                emit("pop arg0"); // filename; remove from stack
+                emit("mov arg1, string_rplus");
+                emit("ffcall fopen"); // result is in rax
+                return VarType.INTEGER;
+            }
+        case "READ":
+            {
+                // READ LP expr RP
+                // fgets(ptr, size, handle)
+                // strtol(ptr, eptr, base)
+                var handleType = exprNodeCode(n.children[2]);
+                if (handleType !== VarType.INTEGER) {
+                    throw new Error("READ expected arg of type INTEGER");
+                }
+                emit("mov arg0, fgets_buffer");
+                emit("mov arg1, 64");
+                emit("pop arg2");
+                emit("ffcall fgets");
+                // check for errors
+                var lbl = label();
+                emit("cmp qword [rsp], -1");
+                emit("jne " + lbl);
+                emit("ffcall abort");
+                emit(lbl + ":");
+                emit("mov arg0, fgets_buffer");
+                emit("mov arg1, 0");
+                emit("mov arg2, 10");
+                emit("ffcall strtol"); // result is in rax
+                return VarType.INTEGER;
+            }
+        case "WRITE":
+            {
+                // WRITE LP expr CMA expr RP
+                // fprintf(fp, "%s", str) or fprintf(fp, "%d", num)
+                var handleType = exprNodeCode(n.children[2]);
+                if (handleType !== VarType.INTEGER) {
+                    throw new Error("WRITE expected arg 1 of type INTEGER");
+                }
+                var outputType = exprNodeCode(n.children[4]);
+                var fmt = void 0;
+                if (outputType === VarType.INTEGER) {
+                    fmt = "string_percent_d";
+                }
+                else if (outputType === VarType.STRING) {
+                    fmt = "string_percent_s";
+                }
+                else {
+                    throw new Error("WRITE expected arg 2 of type INTEGER or STRING");
+                }
+                emit("pop arg2"); // the thing to print
+                emit("mov arg1, " + fmt);
+                emit("pop arg0"); // the handle
+                emit("ffvcall fprintf, 0");
+                // need to call fflush(NULL)
+                emit("mov arg0, 0");
+                emit("ffcall fflush");
+                return VarType.VOID;
+            }
+        case "CLOSE":
+            {
+                // CLOSE LP expr RP
+                // fclose(handle)
+                var type = exprNodeCode(n.children[2]);
+                if (type !== VarType.INTEGER) {
+                    throw new Error("CLOSE expected arg of type INTEGER");
+                }
+                emit("pop arg0"); // argument for fclose
+                emit("ffcall fclose");
+                return VarType.VOID;
+            }
+    }
 }
 // UTILITY FUNCTIONS
 function emit(instr) {

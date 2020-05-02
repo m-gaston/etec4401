@@ -20,24 +20,6 @@ g1Listener.prototype.exitProgram = function(ctx) {
 };
 
 
-// Enter a parse tree produced by g1Parser#varDeclList.
-g1Listener.prototype.enterVarDeclList = function(ctx) {
-};
-
-// Exit a parse tree produced by g1Parser#varDeclList.
-g1Listener.prototype.exitVarDeclList = function(ctx) {
-};
-
-
-// Enter a parse tree produced by g1Parser#varDecl.
-g1Listener.prototype.enterVarDecl = function(ctx) {
-};
-
-// Exit a parse tree produced by g1Parser#varDecl.
-g1Listener.prototype.exitVarDecl = function(ctx) {
-};
-
-
 // Enter a parse tree produced by g1Parser#stmts.
 g1Listener.prototype.enterStmts = function(ctx) {
 };
@@ -56,12 +38,12 @@ g1Listener.prototype.exitStmt = function(ctx) {
 };
 
 
-// Enter a parse tree produced by g1Parser#assign.
-g1Listener.prototype.enterAssign = function(ctx) {
+// Enter a parse tree produced by g1Parser#loop.
+g1Listener.prototype.enterLoop = function(ctx) {
 };
 
-// Exit a parse tree produced by g1Parser#assign.
-g1Listener.prototype.exitAssign = function(ctx) {
+// Exit a parse tree produced by g1Parser#loop.
+g1Listener.prototype.exitLoop = function(ctx) {
 };
 
 
@@ -74,21 +56,21 @@ g1Listener.prototype.exitCond = function(ctx) {
 };
 
 
-// Enter a parse tree produced by g1Parser#loop.
-g1Listener.prototype.enterLoop = function(ctx) {
-};
-
-// Exit a parse tree produced by g1Parser#loop.
-g1Listener.prototype.exitLoop = function(ctx) {
-};
-
-
 // Enter a parse tree produced by g1Parser#braceblock.
 g1Listener.prototype.enterBraceblock = function(ctx) {
 };
 
 // Exit a parse tree produced by g1Parser#braceblock.
 g1Listener.prototype.exitBraceblock = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#returnStmt.
+g1Listener.prototype.enterReturnStmt = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#returnStmt.
+g1Listener.prototype.exitReturnStmt = function(ctx) {
 };
 
 
@@ -173,12 +155,48 @@ g1Listener.prototype.exitFactor = function(ctx) {
 };
 
 
-// Enter a parse tree produced by g1Parser#returnStmt.
-g1Listener.prototype.enterReturnStmt = function(ctx) {
+// Enter a parse tree produced by g1Parser#varDeclList.
+g1Listener.prototype.enterVarDeclList = function(ctx) {
 };
 
-// Exit a parse tree produced by g1Parser#returnStmt.
-g1Listener.prototype.exitReturnStmt = function(ctx) {
+// Exit a parse tree produced by g1Parser#varDeclList.
+g1Listener.prototype.exitVarDeclList = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#varDecl.
+g1Listener.prototype.enterVarDecl = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#varDecl.
+g1Listener.prototype.exitVarDecl = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#assign.
+g1Listener.prototype.enterAssign = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#assign.
+g1Listener.prototype.exitAssign = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#funcCall.
+g1Listener.prototype.enterFuncCall = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#funcCall.
+g1Listener.prototype.exitFuncCall = function(ctx) {
+};
+
+
+// Enter a parse tree produced by g1Parser#builtinFuncCall.
+g1Listener.prototype.enterBuiltinFuncCall = function(ctx) {
+};
+
+// Exit a parse tree produced by g1Parser#builtinFuncCall.
+g1Listener.prototype.exitBuiltinFuncCall = function(ctx) {
 };
 
 
