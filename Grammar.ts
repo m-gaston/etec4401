@@ -57,16 +57,16 @@ export class Grammar {
         }
 
         // Check for unused symbols
-        let start: string = this.nonterminals.keys().next().value;
+        /* let start: string = this.nonterminals.keys().next().value;
         let reachable: Set<string> = this.dfs(start, new Set<string>());
         for (let sym of this.symbols) {
             if (!reachable.has(sym)) {
                 throw new Error("Unused symbol: '" + sym + "'");
             }
-        }
+        } */
     }
 
-    dfs(node: string, visited: Set<string>): Set<string> {
+    /* dfs(node: string, visited: Set<string>): Set<string> {
         visited.add(node);
         for (let prod of this.nonterminals.get(node)) {
             for (let sym of prod) {
@@ -84,5 +84,5 @@ export class Grammar {
             }
         }
         return visited;
-    }
+    } */
 }

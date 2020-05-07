@@ -20,7 +20,7 @@ function splitAndTrim(s, sep) {
 }
 var Grammar = /** @class */ (function () {
     function Grammar(spec) {
-        var e_1, _a, e_2, _b, e_3, _c;
+        var e_1, _a, e_2, _b;
         this.terminals = new Map();
         this.nonterminals = new Map();
         this.symbols = new Set();
@@ -88,64 +88,14 @@ var Grammar = /** @class */ (function () {
             this.symbols.add(pair[0]);
         }
         // Check for unused symbols
-        var start = this.nonterminals.keys().next().value;
-        var reachable = this.dfs(start, new Set());
-        try {
-            for (var _d = __values(this.symbols), _e = _d.next(); !_e.done; _e = _d.next()) {
-                var sym = _e.value;
-                if (!reachable.has(sym)) {
-                    throw new Error("Unused symbol: '" + sym + "'");
-                }
+        /* let start: string = this.nonterminals.keys().next().value;
+        let reachable: Set<string> = this.dfs(start, new Set<string>());
+        for (let sym of this.symbols) {
+            if (!reachable.has(sym)) {
+                throw new Error("Unused symbol: '" + sym + "'");
             }
-        }
-        catch (e_3_1) { e_3 = { error: e_3_1 }; }
-        finally {
-            try {
-                if (_e && !_e.done && (_c = _d["return"])) _c.call(_d);
-            }
-            finally { if (e_3) throw e_3.error; }
-        }
+        } */
     }
-    Grammar.prototype.dfs = function (node, visited) {
-        var e_4, _a, e_5, _b;
-        visited.add(node);
-        try {
-            for (var _c = __values(this.nonterminals.get(node)), _d = _c.next(); !_d.done; _d = _c.next()) {
-                var prod = _d.value;
-                try {
-                    for (var prod_1 = (e_5 = void 0, __values(prod)), prod_1_1 = prod_1.next(); !prod_1_1.done; prod_1_1 = prod_1.next()) {
-                        var sym = prod_1_1.value;
-                        if (!this.terminals.has(sym) && !this.nonterminals.has(sym)) {
-                            throw new Error("Undefined symbol: '" + sym + "'");
-                        }
-                        if (!visited.has(sym)) {
-                            if (this.terminals.has(sym)) {
-                                visited.add(sym);
-                            }
-                            else {
-                                this.dfs(sym, visited);
-                            }
-                        }
-                    }
-                }
-                catch (e_5_1) { e_5 = { error: e_5_1 }; }
-                finally {
-                    try {
-                        if (prod_1_1 && !prod_1_1.done && (_b = prod_1["return"])) _b.call(prod_1);
-                    }
-                    finally { if (e_5) throw e_5.error; }
-                }
-            }
-        }
-        catch (e_4_1) { e_4 = { error: e_4_1 }; }
-        finally {
-            try {
-                if (_d && !_d.done && (_a = _c["return"])) _a.call(_c);
-            }
-            finally { if (e_4) throw e_4.error; }
-        }
-        return visited;
-    };
     return Grammar;
 }());
 exports.Grammar = Grammar;
