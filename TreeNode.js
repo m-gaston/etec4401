@@ -6,41 +6,6 @@ var TreeNode = /** @class */ (function () {
         this.token = token;
         this.children = [];
     }
-<<<<<<< Updated upstream
-    TreeNode.prototype.toString = function () {
-        function walk(n, callback) {
-            callback(n);
-            n.children.forEach(function (x) {
-                walk(x, callback);
-            });
-        }
-        var L = [];
-        L.push("digraph d{");
-        L.push("node [fontname=\"Courier New\", shape=box];");
-        var counter = 0;
-        walk(this, function (n) {
-            n.NUMBER = n.sym + (counter++);
-            var tmp = n.sym;
-            if (n.token) {
-                tmp += "\n";
-                tmp += n.token.lexeme;
-            }
-            tmp = tmp.replace(/&/g, "&amp;");
-            tmp = tmp.replace(/</g, "&lt;");
-            tmp = tmp.replace(/>/g, "&gt;");
-            tmp = tmp.replace(/\n/g, "<br/>");
-            L.push(n.NUMBER + " [label=<" + tmp + ">];");
-        });
-        walk(this, function (n) {
-            n.children.forEach(function (x) {
-                L.push(n.NUMBER + " -> " + x.NUMBER + ";");
-            });
-        });
-        L.push("}");
-        return L.join("\n");
-    };
-=======
->>>>>>> Stashed changes
     return TreeNode;
 }());
 exports.TreeNode = TreeNode;
