@@ -6,14 +6,10 @@ export class Tokenizer {
     inputData: string;
     currentLine: number;
     idx: number;
-<<<<<<< Updated upstream
-    constructor(grammar: Grammar) {
-=======
     curToken: Token;
     prevToken: Token;
     constructor(grammar: Grammar)
     {
->>>>>>> Stashed changes
         this.grammar = grammar;
     }
     setInput(inputData: string) {
@@ -21,15 +17,11 @@ export class Tokenizer {
         this.currentLine = 1;
         this.idx = 0;
     }
-<<<<<<< Updated upstream
-    next(): Token {
-=======
     next(): Token
     {
         if (this.curToken !== undefined) {
             this.prevToken = this.curToken;
         }
->>>>>>> Stashed changes
         // Check for EOF
         if (this.idx >= this.inputData.length) {
             return new Token("$", undefined, this.currentLine);
